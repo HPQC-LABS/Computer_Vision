@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_layout_file>
+	<FileVersion major="1" minor="0" />
+	<ActiveTarget name="Debug" />
+	<File name="QPBO\QPBO.h" open="0" top="0" tabpos="0" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="29545" topLine="778" />
+		</Cursor>
+	</File>
+	<File name="ELCdemo.cpp" open="1" top="0" tabpos="1" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="2196" topLine="42" />
+		</Cursor>
+	</File>
+	<File name="Image.h" open="0" top="0" tabpos="4" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="2294" topLine="41" />
+		</Cursor>
+	</File>
+	<File name="ELC\ELC0.h" open="1" top="0" tabpos="3" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="3399" topLine="42" />
+		</Cursor>
+	</File>
+	<File name="ELC\ELC.h" open="1" top="1" tabpos="2" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="15153" topLine="326" />
+		</Cursor>
+		<Folding>
+			<Collapse line="322" />
+		</Folding>
+	</File>
+	<File name="QPBO\QPBO.cpp" open="0" top="0" tabpos="0" split="0" active="1" splitpos="0" zoom_1="0" zoom_2="0">
+		<Cursor>
+			<Cursor1 position="11136" topLine="360" />
+		</Cursor>
+	</File>
+</CodeBlocks_layout_file>

@@ -44,7 +44,8 @@ void index_ordered(IT i1, IT iend)
 template<typename IT> void index_ordered(IT i1, IT iend) {}
 #endif
 
-
+#include <iostream>
+#include <cstdio>
 
 // Container for monomials of a fixed degree.
 template <typename REAL> // REAL: real number
@@ -96,7 +97,7 @@ template <typename REAL>
 class Terms
 {
 public:
-	Terms(int maxVars) : termsD(3), termIdx(maxVars) 
+	Terms(int maxVars) : termsD(3), termIdx(maxVars)
 	{
 		termsD[0] = 0;
 		for (int d = 1; d <= 2; d++)
@@ -104,11 +105,27 @@ public:
 	}
 	~Terms() {for (auto it = termsD.begin(); it != termsD.end(); it++) if (*it) delete *it;}
 	void clear() {termIdx.clear(); for (auto it = termsD.begin(); it != termsD.end(); it++) if (*it) delete *it; termsD.clear();}
+
+	//Print terms
+	void print(REAL& constant)
+	{
+	    for(int deg = 1; deg < termsD.size(); deg++)
+            for(int i = 0; i < termsD[deg]->size(); i++)
+            {
+                std::printf( " %+i", termsD[deg]->coef(i));
+                auto idx = termsD[deg]->getVIt(i);
+                for(int it = 0; it < deg; it++)
+                    std::printf( "x_{%i}", *(idx + it) + 1); //shift variables to start from 1
+            }
+
+        std::printf( " %+i\n", constant);
+    }
+
 	void shrink()
 	{
 		for (auto it = termsD.begin(); it != termsD.end(); it++)
-			if (*it) 
-				(*it)->shrink(); 
+			if (*it)
+				(*it)->shrink();
 		rebuildTermIdx();
 	}
 	struct TermPointer
@@ -124,7 +141,7 @@ public:
 		int idx;
 	};
 	typedef std::vector<TermPointer> TPVec;
-	struct iterator 
+	struct iterator
 	{
 		iterator(Terms const * p, int degree, int index) : pObject(p), pTerm(degree, index) {}
 		VVecIt vars() const {return pObject->getVIt(pTerm);}
@@ -133,9 +150,9 @@ public:
 		void operator++()
 		{
 			pTerm.idx++;
-			if (pTerm.idx >= pObject->termsD[pTerm.d]->size()) 
+			if (pTerm.idx >= pObject->termsD[pTerm.d]->size())
 			{
-				pTerm.idx = 0; 
+				pTerm.idx = 0;
 				pTerm.d--;
 				while (pTerm.d > 0 && (!pObject->termsD[pTerm.d] || !pObject->termsD[pTerm.d]->size()))
 					pTerm.d--;
@@ -143,6 +160,7 @@ public:
 		}
 		bool operator==(const iterator& i) const {return pObject == i.pObject && pTerm == i.pTerm;}
 		bool operator!=(const iterator& i) const {return !operator==(i);}
+
 	private:
 		friend class Terms;
 		Terms const * pObject;
@@ -157,7 +175,7 @@ public:
 	}
 	iterator end() const {return iterator(this, 0, 0);}
 
-	struct variables 
+	struct variables
 	{
 		variables(const iterator& it) : sz(it.degree()), z(it.vars()+sz) {assert(sz > 0);}
 		variables(const Terms& terms, const TermPointer& pTerm) : sz(pTerm.degree()), z(terms.getVIt(pTerm)+sz) {assert(sz > 0);}
@@ -169,7 +187,7 @@ public:
 		{
 			if (sz < vi.sz || *(z-1) < *(vi.z-vi.sz) || *(vi.z-1) < *(z-sz))
 				return false;
-			VVecIt i1 = z - sz, i2 = vi.z - vi.sz; 
+			VVecIt i1 = z - sz, i2 = vi.z - vi.sz;
 			while (true)
 			{
 				if (*i2 <*i1)
@@ -232,7 +250,7 @@ public:
 			termIdx.resize(maxvar + 1);
 	}
 
-	void add(REAL c, int degree, VID* vars) 
+	void add(REAL c, int degree, VID* vars)
 	{
 		if (termsD.size() <= degree)
 			termsD.insert(termsD.end(), degree - termsD.size() + 1, 0);
@@ -265,7 +283,7 @@ protected:
 	}
 
 	std::vector<TermsD<REAL>*> termsD; // termsD[d] : degree d terms
-	// for each variable id i, termIdx[i] lists all the terms that contains the variable
+	// for each variable id i, termIdx[i] lists all the terms that contain the variable
 	std::vector<TPVec> termIdx;
 };
 
@@ -329,6 +347,191 @@ public:
 			if (!(~x & (*it).first))
 				rv += (*it).second;
 		return rv;
+	}
+
+	void print()
+    {
+        for (auto it = terms.begin(); it != terms.end(); it++)
+        {
+            int j = 0;
+            for(int b = 131072; b > 0; b>>=1)
+                if (b & ((*it).first))
+                    j++;
+            if (j < 3)
+                continue;
+
+            std::printf(" %+i", ((*it).second));
+            j = 18;
+            for(int b = 131072; b > 0; b>>=1)
+            {
+                if (b & ((*it).first))
+                    std::printf( "x_{%i}", j );
+                j--;
+            }
+        }
+        std::printf("\n");
+    }
+
+	// Find the case for Tin's method
+	unsigned short int get_Tin_case(std::vector< std::pair <BITMASK, REAL> > cubics, REAL quartic){
+		unsigned short int case_[4];
+		REAL c;
+		for(int i = 0; i < 4; i++){
+			c = cubics[i].second;
+			if( c < -quartic )
+				case_[i] = 0;
+			else if( c < -(float(quartic)/2) )
+				case_[i] = 1;
+			else if ( c < 0 )
+				case_[i] = 2;
+			else
+				case_[i] = 3;
+		}
+
+		bool condition  = ( cubics[0].second + cubics[1].second ) < -quartic;
+		bool condition2 = ( cubics[2].second + cubics[3].second ) < -quartic;
+
+		unsigned short int case_id = 0;
+
+		if(case_[3] < 2)
+			case_id = 20;
+		else if(case_[0] > 1)
+			case_id = 1;
+		else if(case_[0] == 1){
+			if(case_[1] == 3)
+				case_id = 2;
+			else if(case_[1] == 2){
+				if(case_[2] == 3){
+					if(condition)
+						case_id = 40;
+					else
+						case_id = 41;
+				}
+				else{// (case_[2] == 2)
+					if(case_[3] == 2){
+						if(condition)
+							case_id = 14;
+						else
+							case_id = 13;
+					}
+					else{// (case_[3] == 3)
+						if(condition)
+							case_id = 7;
+						else
+							case_id = 15;
+					}
+				}
+			}
+			else{// (case_[1] == 1)
+				if(case_[2] == 1){
+					if(case_[3] == 3)
+						case_id = 9;
+					else if(case_[3] == 2){
+						if(condition2)
+							case_id = 160;
+						else
+							case_id = 161;
+					}
+				}
+				else
+					case_id = 6;
+			}
+		}
+		else{// (case_[0] == 0)
+			if(case_[1] == 3)
+				case_id = 3;
+			else if(case_[1] == 2){
+				if(case_[2] == 3)
+					case_id = 5;
+				else{// (case_[2] == 2)
+					if(case_[3] == 3)
+						case_id = 8;
+					else// (case_[3] == 2)
+						case_id = 14;
+				}
+			}
+			else if(case_[1] == 1){
+				if(case_[2] > 1)
+					case_id = 6;
+				else{// (case_[2] == 1)
+					if(case_[3] == 3)
+						case_id = 10;
+					else{// (case_[3] == 2)
+						if(condition2)
+							case_id = 170;
+						else
+							case_id = 171;
+					}
+				}
+			}
+			else{// (case_[1] == 0)
+				if(case_[2] > 1)
+					case_id = 6;
+				else if(case_[2] == 1){
+					if(case_[3] == 3)
+						case_id = 11;
+					else{// (case_[3] == 2)
+						if(condition2)
+							case_id = 180;
+						else
+							case_id = 181;
+					}
+				}
+				else{// (case_[2] == 0)
+					if(case_[3] == 3)
+						case_id = 12;
+					else// (case_[3] == 2)
+						case_id = 19;
+				}
+			}
+		}
+
+//		std::printf("case_ID = %d\n", case_id);
+
+//		if(!case_id){
+//			for(auto it = cubics.begin(); it != cubics.end(); it++)
+//				std::printf("%d, ", it->second );
+//			std::printf("quartic: %d, cond: %d\n", quartic, condition);
+//			for(auto x : case_)
+//				std::printf("   %d", x);
+//			system("PAUSE");
+//		}
+		return case_id;
+	}
+
+	// Get cubic and quartic terms
+	void get_hot_terms(std::vector<std::pair<BITMASK, REAL> >& cubics, REAL& quartic){
+		int counter = 4;
+		BITMASK bitmask;
+
+		for (auto it = terms.end() - 5; it != terms.end(); it++){
+			bitmask = it -> first;
+
+			if( bitmask == 14 || bitmask == 13 || bitmask == 11 || bitmask == 7){
+				cubics.push_back(*it);
+				counter--;
+			}
+			else if( bitmask == 15)	quartic = it -> second;
+		}
+
+		// Add the ones with a coefficient of zero
+		if(counter){
+			unsigned short int arr[4] = {7, 11, 13, 14};
+			bool found[4] = {false, false, false, false};
+
+			for(int i = 0; i < 4; i++)
+				for(auto x : cubics)
+					if(x.first == arr[i]){
+						found[i] = true;
+						break;
+					}
+
+			for(int i = 0; i < 4; i++)
+				if(!found[i])
+					cubics.push_back( std::make_pair(arr[i],0) );
+		}
+
+		std::sort(cubics.begin(), cubics.end(), [](const std::pair<BITMASK, REAL> &a, const std::pair<BITMASK, REAL> &b) {return a.second < b.second;} );
 	}
 
 	// odd: if false, find the even ELC (with even number of 1s), if true, find the odd ELC

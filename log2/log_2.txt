@@ -1,0 +1,8 @@
+plot( [100, 400, 900, 1600, 2500, 3600, 4900, 6400, 8100, 10000], [nan, nan, nan, nan, nan, nan, nan, nan, nan, nan] );
+plot( [100, 400, 900, 1600, 2500, 3600, 4900, 6400, 8100, 10000], [nan, nan, nan, nan, nan, nan, nan, nan, nan, nan] );
+
+plot( [nan, nan, nan, nan, nan, nan, nan, nan, nan, nan], [nan, nan, nan, nan, nan, nan, nan, nan, nan, nan] );
+
+plot( [nan, nan, nan, nan, nan, nan, nan, nan, nan, nan], [nan, nan, nan, nan, nan, nan, nan, nan, nan, nan] );
+
+plot( [100, 400, 900, 1600, 2500, 3600, 4900, 6400, 8100, 10000], [nan, nan, nan, nan, nan, nan, nan, nan, nan, nan] );

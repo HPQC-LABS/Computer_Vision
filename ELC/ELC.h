@@ -24,7 +24,7 @@ For the latest version, check: http://www.f.waseda.jp/hfs/indexE.html
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 Software for minimizing a higher-order function of binary variables x_1,...,x_n.
-What it actually does is to reduce the function into a first-order MRF, or a 
+What it actually does is to reduce the function into a first-order MRF, or a
 Quadratic Pseudo-Boolean function, i.e., a function of the form
 E(x_1, ..., x_n, ..., x_m) = \sum_i Ei(x_i) + \sum_{ij} Eij(x_i,x_j).
 possibly with additional variables.
@@ -61,7 +61,7 @@ Miami Beach, Florida. June 20-25, 2009.
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-This software is implemented so that it can be used most conveniently 
+This software is implemented so that it can be used most conveniently
 in combination with the QPBO software by Vladimir Kolmogorov available
 at http://pub.ist.ac.at/~vnk/software.html
 
@@ -156,6 +156,8 @@ void main()
 #include <iterator>
 #include<assert.h>
 #include <limits>
+#include <iostream>
+#include <cstdio>
 
 namespace ELCReduce {
 
@@ -172,7 +174,7 @@ const int MAXVARELC = 16; // Maximum number of variables in exhaustive ELC searc
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // class PBF: Pseudo-Boolean Function
-// Represents a pseud-Boolean function. Includes a reduction to quadratic pbf.
+// Represents a pseudo-Boolean function. Includes a reduction to quadratic pbf.
 // REAL: type for coefficients
 
 template <typename REAL>
@@ -186,12 +188,55 @@ public:
 	// clears to free memory
 	void clear() {terms.clear();}
 
+	//Print terms
+	void print() {terms.print(constant);}
+
+    void printStar()
+	{
+	    int j = 0;
+		for (iterator it = begin(); it != end(); ++it)
+		{
+			int d = it.degree();
+			if (d < 3)
+				break;
+			smallPBF<REAL> pbf;
+			getStar(pbf, it);
+			std::printf("Star:\n");
+			auto idx = it.vars();
+            std::printf("Variables: %i, %i, %i, %i\n", *idx, *(idx + 1), *(idx + 2), *(idx + 3));
+			pbf.print();
+			if (j==2)
+                break;
+            j++;
+		}
+	}
+
+	void printCore()
+	{
+	    int j = 0;
+		for (iterator it = begin(); it != end(); ++it)
+		{
+			int d = it.degree();
+			if (d < 3)
+				break;
+			smallPBF<REAL> pbf;
+			getCore(pbf, it);
+            std::printf("Core:\n");
+            auto idx = it.vars();
+            std::printf("Variables: %i, %i, %i, %i\n", *idx, *(idx + 1), *(idx + 2), *(idx + 3));
+			pbf.print();
+			if (j==1)
+                break;
+            j++;
+		}
+	}
+
 	// Adds unary term Ei(x_i) to the energy function with cost values Ei(0)=E0, Ei(1)=E1.
-	// This adds the terms  E0(1 - x_i) + E1 x_i 
+	// This adds the terms  E0(1 - x_i) + E1 x_i
 	void AddUnaryTerm(VID i, REAL E0, REAL E1) {constant += E0; add1(E1 - E0, i);}
 
 	// Adds pairwise term Eij(x_i, x_j) with cost values E00, E01, E10, E11.
-	// This adds the terms  E00(1-x_i)(1-x_j) + E01(1-x_i)x_j + E10 x_i(1-x_j) + E11 x_i x_j 
+	// This adds the terms  E00(1-x_i)(1-x_j) + E01(1-x_i)x_j + E10 x_i(1-x_j) + E11 x_i x_j
 	// i < j must hold.
 	void AddPairwiseTerm(VID i, VID j, REAL E00, REAL E01, REAL E10, REAL E11)
 	{
@@ -201,7 +246,7 @@ public:
 		add2(E00 - E01 - E10 + E11, i, j);
 	}
 
-	// Adds higher-order term Eij...k(x_i, x_j, ..., x_k) with cost values 
+	// Adds higher-order term Eij...k(x_i, x_j, ..., x_k) with cost values
 	// E00...00, E00...01, E00...10,..., E11...10, E11...11.
 	// Note the order of bits very carefully. It is defined consistent with the order
 	// used in the QPBO software. E00...01 is the energy when only the LAST variable,
@@ -237,6 +282,451 @@ public:
 	// Returns the maximum variable ID actually used.
 	VID maxID() const {return terms.maxID();}
 
+	// Reduces this PBF into a qpbf, adding variables (Tin's method). newvar is the variable ID for use as new variable.
+	// Returns the variable ID to use for the next new variable.
+	VID toQuadratic_Tin(PBF& qpbf, VID newvar, int W)
+	{
+		N = newvar;
+		int counter = 0;
+		bool visited[N];
+		for(int i = 0; i < N; i++)
+			visited[i] = false;
+
+		newvar = std::max(newvar, maxID()+1);
+		for (iterator it = begin(); it != end(); ++it)
+		{
+			// Converts higher-order terms to quadratic (Tin's method), if necessary.
+			int d = it.degree();
+			variables va = it;
+			VVecIt vi = va.begin();
+			REAL c = it.coef();
+			if (d == 0)
+				qpbf.addConst(c);
+			else if (d == 1)
+				qpbf.add1(c, *vi);
+			else if (d == 2)
+				qpbf.add2(c, *vi, vi[1]);
+			else if (d == 4)
+			{
+				visited[*vi] = true;
+
+				smallPBF<REAL> clique;
+				getCore(clique, it);
+				addQuadraticTin(qpbf, clique, vi, newvar);
+			}
+			else{// Deal with d == 3 terms that are not found in the above cliques
+				int idx = (*vi == vi[1] - W + 1) ? *vi - 1 : *vi;
+				if(!visited[idx]){
+					counter++;
+					if (c < 0){
+						for (; vi != va.end(); ++vi)
+							qpbf.add2(c, *vi, newvar);
+						qpbf.add1(-2*c, newvar);
+					}
+					else{
+						for (int j = 0; j < 3; j++) // S_1
+							qpbf.add2(-c, vi[j], newvar);
+						qpbf.add1(c, newvar);
+
+						for (int i = 0; i < 2; i++) // S_2
+							for (int j = i + 1; j < 3; j++)
+								qpbf.add2(c, vi[i], vi[j]);
+					}
+					newvar++;
+				}
+			}
+		}
+		std::printf("counter: %d\t", counter);
+		qpbf.addConst(constant);
+		return newvar;
+	}
+
+	void addQuadraticTin(PBF<REAL> &qpbf, smallPBF<REAL> &clique, VVecIt &vi, VID &newvar){
+		bool flipped[N];
+		for(int i = 0; i < N; i++){
+			flipped[i] = false;
+		}
+		std::vector<std::pair<BITMASK, REAL> > cubics;
+		REAL quartic = 0;
+		clique.get_hot_terms(cubics, quartic);
+
+		PBF<REAL> extra;
+		int lemma = apply_bitflips(clique, cubics, quartic, vi, extra, flipped);
+
+		VID vi_true[4];
+		get_true_vi(cubics, vi, vi_true);
+		apply_lemma(lemma, cubics, quartic, vi_true, newvar, qpbf, flipped);
+		qpbf.addQuad(extra, flipped);
+
+		/*
+		VID v_true[4];
+		std::vector<std::pair<BITMASK, REAL> > cub;
+		REAL quar = 0;
+		clique.get_hot_terms(cub, quar);
+		get_true_vi(cub, vi, v_true);
+		bool flag = check(extra, flipped, cub, quar, v_true, newvar);
+
+		if(!flag){
+//			std::printf("case_ID = %d\n", case_ID);
+			std::printf("%d, %d, %d, %d, quartic = %d\n", cubics[0].second, cubics[1].second, cubics[2].second, cubics[3].second, quartic);
+//			std::printf("%d, %d, %d, %d\n", cubics[0].first, cubics[1].first, cubics[2].first, cubics[3].first);
+			extra.print();
+			system("PAUSE");
+		}
+		*/
+		newvar++;
+	}
+
+	void apply_lemma(int lemma, std::vector<std::pair<BITMASK, REAL> > &cubics, REAL &quartic, VID *vi_true, VID newvar, PBF<REAL> &quad, bool *flipped){
+		assert(check_lemma_condition(cubics, quartic, lemma));
+
+		REAL cubics_sum = cubics[0].second + cubics[1].second + cubics[2].second + cubics[3].second;
+
+		if(lemma == 1){
+			quad.add1(3*quartic + cubics_sum, newvar);
+			for (int i = 0; i < 3; i++)
+				for (int j = i + 1; j < 4; j++)
+					if((i == 0 && j == 3) || (i == 1 && j == 2))
+						quad.add2_flipped(quartic + cubics_sum - cubics[i].second - cubics[j].second, std::min(vi_true[i], vi_true[j]), std::max(vi_true[i], vi_true[j]), flipped);
+					else
+						quad.add2_flipped(quartic + cubics[i].second + cubics[j].second, std::min(vi_true[i], vi_true[j]), std::max(vi_true[i], vi_true[j]), flipped);
+
+			for(int i = 0; i < 4; i++)
+				quad.add2_flipped( - 2*quartic - cubics_sum + cubics[3 - i].second, vi_true[i], newvar, flipped);
+		}
+		else{//Lemma 2
+			quad.add1( - 3*quartic - 2*cubics_sum, newvar);
+			for(int i = 0; i < 4; i++)
+				quad.add2_flipped( quartic + cubics_sum - cubics[3 - i].second, vi_true[i], newvar, flipped);
+		}
+	}
+
+	short int apply_bitflips(smallPBF<REAL> &clique,std::vector<std::pair<BITMASK, REAL> > &cubics, REAL &quartic, VVecIt &vi, PBF<REAL> &quad, bool *flipped){
+
+		if(quartic < 0){
+			bitflip(cubics, quartic, quad, vi, flipped, 1);
+			std::sort(cubics.begin(), cubics.end(), [](const std::pair<BITMASK, REAL> &a, const std::pair<BITMASK, REAL> &b) {return a.second < b.second;} );
+		}
+
+		unsigned short int case_ID = clique.get_Tin_case(cubics, quartic);	assert(case_ID != 0);
+		switch(case_ID){
+		case 3:
+			bitflip(cubics, quartic, quad, vi, flipped, 4);
+			break;
+		case 40:
+			bitflip(cubics, quartic, quad, vi, flipped, 3);
+			bitflip(cubics, quartic, quad, vi, flipped, 4);
+			break;
+		case 5:
+			bitflip(cubics, quartic, quad, vi, flipped, 3);
+			bitflip(cubics, quartic, quad, vi, flipped, 4);
+			break;
+		case 6:
+			bitflip(cubics, quartic, quad, vi, flipped, 3);
+			bitflip(cubics, quartic, quad, vi, flipped, 4);
+			break;
+		case 7:
+			bitflip(cubics, quartic, quad, vi, flipped, 3);
+			bitflip(cubics, quartic, quad, vi, flipped, 4);
+			break;
+		case 8:
+			bitflip(cubics, quartic, quad, vi, flipped, 3);
+			bitflip(cubics, quartic, quad, vi, flipped, 4);
+			break;
+		case 9:
+			bitflip(cubics, quartic, quad, vi, flipped, 3);
+			bitflip(cubics, quartic, quad, vi, flipped, 4);
+			break;
+		case 10:
+			bitflip(cubics, quartic, quad, vi, flipped, 3);
+			bitflip(cubics, quartic, quad, vi, flipped, 4);
+			break;
+		case 11:
+			bitflip(cubics, quartic, quad, vi, flipped, 3);
+			bitflip(cubics, quartic, quad, vi, flipped, 4);
+			break;
+		case 12:
+			bitflip(cubics, quartic, quad, vi, flipped, 2);
+			bitflip(cubics, quartic, quad, vi, flipped, 3);
+			bitflip(cubics, quartic, quad, vi, flipped, 4);
+			break;
+		case 14:
+			bitflip(cubics, quartic, quad, vi, flipped, 3);
+			bitflip(cubics, quartic, quad, vi, flipped, 4);
+			break;
+		case 160:
+			bitflip(cubics, quartic, quad, vi, flipped, 1);
+			bitflip(cubics, quartic, quad, vi, flipped, 2);
+			bitflip(cubics, quartic, quad, vi, flipped, 3);
+			bitflip(cubics, quartic, quad, vi, flipped, 4);
+			break;
+		case 170:
+			bitflip(cubics, quartic, quad, vi, flipped, 1);
+			bitflip(cubics, quartic, quad, vi, flipped, 2);
+			bitflip(cubics, quartic, quad, vi, flipped, 3);
+			bitflip(cubics, quartic, quad, vi, flipped, 4);
+			break;
+		case 180:
+			bitflip(cubics, quartic, quad, vi, flipped, 1);
+			bitflip(cubics, quartic, quad, vi, flipped, 2);
+			bitflip(cubics, quartic, quad, vi, flipped, 3);
+			bitflip(cubics, quartic, quad, vi, flipped, 4);
+			break;
+		case 161:
+			bitflip(cubics, quartic, quad, vi, flipped, 3);
+			bitflip(cubics, quartic, quad, vi, flipped, 4);
+			break;
+		case 171:
+			bitflip(cubics, quartic, quad, vi, flipped, 3);
+			bitflip(cubics, quartic, quad, vi, flipped, 4);
+			break;
+		case 181:
+			bitflip(cubics, quartic, quad, vi, flipped, 3);
+			bitflip(cubics, quartic, quad, vi, flipped, 4);
+			break;
+		case 19:
+			bitflip(cubics, quartic, quad, vi, flipped, 1);
+			bitflip(cubics, quartic, quad, vi, flipped, 2);
+			bitflip(cubics, quartic, quad, vi, flipped, 3);
+			bitflip(cubics, quartic, quad, vi, flipped, 4);
+			break;
+		case 20:
+			bitflip(cubics, quartic, quad, vi, flipped, 1);
+			bitflip(cubics, quartic, quad, vi, flipped, 2);
+			bitflip(cubics, quartic, quad, vi, flipped, 3);
+			bitflip(cubics, quartic, quad, vi, flipped, 4);
+			break;
+		}
+
+		if(case_ID == 3 || case_ID == 12)
+			return 2;
+		else
+			return 1;
+	}
+
+	void add1_flipped(REAL c, VID v1, bool *flipped){
+		if(v1 < N && flipped[v1]){
+			add1(-c, v1);
+			addConst(c);
+		}
+		else
+			add1(c, v1);
+	}
+	void add2_flipped(REAL c, VID v1, VID v2, bool *flipped){
+		if(v1 < N && flipped[v1]){
+			if(v2 < N && flipped[v2]){
+				add2(c, v1, v2);
+				add1(-c, v1);
+				add1(-c, v2);
+				addConst(c);
+			}
+			else{
+				add2(-c, v1, v2);
+				add1(c, v2);
+			}
+		}
+		else{
+			if(v2 < N && flipped[v2]){
+				add2(-c, v1, v2);
+				add1(c, v1);
+			}
+			else
+				add2(c, v1, v2);
+		}
+	}
+
+	void addQuad(PBF<REAL> &quad, bool *flipped){
+		for(iterator it = quad.begin(); it != quad.end(); ++it){
+			int d = it.degree();
+			variables va = it;
+			VVecIt vi = va.begin();
+			REAL c = it.coef();
+			if (d == 0)
+				addConst(c);
+			else if (d == 1)
+				add1_flipped(c, *vi, flipped);
+			else if (d == 2)
+				add2_flipped(c, *vi, vi[1], flipped);
+		}
+	}
+
+	bool check_lemma_condition(std::vector<std::pair<BITMASK, REAL> > &cubics, REAL quartic, int lemma){
+		if(lemma == 1){
+			for(int i = 0; i < 4; i++){
+				if(cubics[i].second < -quartic)
+					return false;
+				for(int j = i+1; j < 4; j++)
+					if(cubics[i].second + cubics[j].second < -quartic)
+						return false;
+			}
+			return true;
+		}
+		else if(lemma == 2){
+			for(int i = 0; i < 4; i++)
+				if(cubics[i].second > 0)
+					return false;
+			if(quartic > 0)
+				return false;
+			return true;
+		}
+	}
+
+	bool check(PBF<REAL> &quad, bool *flipped, std::vector<std::pair<BITMASK, REAL> > &cubics, REAL quartic, VID *vi, VID newvar){
+		for(int i = 0; i < 16; i++){
+			int bit[4];
+			bit[0] = i%2;
+			bit[1] = (i>>1)%2;
+			bit[2] = (i>>2)%2;
+			bit[3] = (i>>3)%2;
+
+			REAL val0 = evaluate(quad, bit, vi, newvar, 0);
+			REAL val1 = evaluate(quad, bit, vi, newvar, 1);
+			REAL res = std::min(val0, val1);
+
+			REAL org = 0, cubics_sum = cubics[0].second + cubics[1].second + cubics[2].second + cubics[3].second;
+			for(int k = 0; k < 4; k++)
+				if(flipped[vi[k]])
+					bit[k] = (bit[k] + 1) % 2;
+
+			int k = bit[0] + 2*bit[1] + 4*bit[2] + 8*bit[3];
+			if(k == 15)
+				org = quartic + cubics_sum;
+			else if(k == 14 || k == 13 || k == 11 || k == 7){
+				for(int j = 0; j < 4; j++)
+					if(bit[j] == 0)
+						org = cubics[3-j].second;
+			}
+//			std::printf("quad = %d, org = %d\n", res, org);
+			if(org != res)
+				return false;
+		}
+		return true;
+	}
+
+	REAL evaluate(PBF<REAL> &quad, int *bit, VID *v, VID newvar, int aux){
+		REAL value = 0;
+//		std::printf("%d, %d, %d, %d\n", bit[0], bit[1], bit[2], bit[3]);
+		for(iterator it = quad.begin(); it != quad.end(); ++it){
+			int d = it.degree();
+			variables va = it;
+			VVecIt vi = va.begin();
+
+			bool flag = true;
+			for(int i = 0; i < d; i++){
+//				std::printf("%d, ", vi[i]);
+				for(int j = 0; j < 4; j++)
+					if(vi[i] == v[j] && bit[j] == 0){
+						flag = false;
+						break;
+					}
+				if(aux == 0 && vi[i] == newvar)
+					flag = false;
+			}
+			if(flag){
+				value += it.coef();
+//				std::printf("   Added %d", c);
+			}
+//			std::printf("\n");
+		}
+		value += quad.cnst();
+//		std::printf("value = %d\n", value);
+		return value;
+	}
+
+	void bitflip(std::vector< std::pair <BITMASK, REAL> > &cubics, REAL &quartic, PBF<REAL>& extra, VVecIt &vi_org, bool *flipped, short int bit){
+		VID vi[4];
+		get_true_vi(cubics, vi_org, vi);
+
+		bit--;
+		for(iterator it = extra.begin(); it != extra.end(); ++it){
+			int d = it.degree();
+			variables va = it;
+			VVecIt v = va.begin();
+
+			if(d == 1){
+				if(*v == vi[bit]){
+					REAL c = it.coef();
+					extra.add1(-2*c, *v);
+					extra.addConst(c);
+				}
+			}
+			else if(d == 2){
+				if(*v == vi[bit]){
+					REAL c = it.coef();
+					extra.add2(-2*c, *v, v[1]);
+					extra.add1(c, v[1]);
+				}
+				else if(v[1] == vi[bit]){
+					REAL c = it.coef();
+					extra.add2(-2*c, *v, v[1]);
+					extra.add1(c, *v);
+				}
+			}
+		}
+		if(bit == 0){
+			flipped[vi[0]] += -1;
+			extra.add2(cubics[0].second, std::min(vi[1], vi[2]), std::max(vi[1], vi[2]));
+			extra.add2(cubics[1].second, std::min(vi[1], vi[3]), std::max(vi[1], vi[3]));
+			extra.add2(cubics[2].second, std::min(vi[2], vi[3]), std::max(vi[2], vi[3]));
+		}
+		else if(bit == 1){
+			flipped[vi[1]] += -1;
+			extra.add2(cubics[0].second, std::min(vi[0], vi[2]), std::max(vi[0], vi[2]));
+			extra.add2(cubics[1].second, std::min(vi[0], vi[3]), std::max(vi[0], vi[3]));
+			extra.add2(cubics[3].second, std::min(vi[2], vi[3]), std::max(vi[2], vi[3]));
+		}
+		else if(bit == 2){
+			flipped[vi[2]] += -1;
+			extra.add2(cubics[0].second, std::min(vi[0], vi[1]), std::max(vi[0], vi[1]));
+			extra.add2(cubics[2].second, std::min(vi[0], vi[3]), std::max(vi[0], vi[3]));
+			extra.add2(cubics[3].second, std::min(vi[1], vi[3]), std::max(vi[1], vi[3]));
+		}
+		else{// (bit == 3)
+			flipped[vi[3]] += -1;
+			extra.add2(cubics[1].second, std::min(vi[0], vi[1]), std::max(vi[0], vi[1]));
+			extra.add2(cubics[2].second, std::min(vi[0], vi[2]), std::max(vi[0], vi[2]));
+			extra.add2(cubics[3].second, std::min(vi[1], vi[2]), std::max(vi[1], vi[2]));
+		}
+
+		for(int i = 0; i < 4; i++)
+			if(bit == (3-i))
+				cubics[i].second += quartic;
+			else
+				cubics[i].second *= -1;
+		quartic *= -1;
+
+//		std::printf("cubics: %d, %d, %d, %d, quartic: %d\n", cubics[0].second, cubics[1].second, cubics[2].second, cubics[3].second, quartic);
+//		std::printf("    \nvi_org: %d, %d, %d, %d\n", vi_org[0], vi_org[1], vi_org[2], vi_org[3]);
+//		std::printf("bit: %d, vi: %d, %d, %d, %d\n", bit, vi[0], vi[1], vi[2], vi[3]);
+//		std::printf("%d, %d, %d, %d\n", cubics[0].first, cubics[1].first, cubics[2].first, cubics[3].first);
+//		extra.print();
+//		system("PAUSE");
+
+	}
+
+	void get_true_vi(std::vector<std::pair<BITMASK, REAL> > &cubics, VVecIt &vi_org, VID *vi){
+		for(int i = 0; i < 4; i++)
+			switch(cubics[i].first){
+			case 7:
+				vi[3-i] = vi_org[0];
+				break;
+			case 11:
+				vi[3-i] = vi_org[1];
+				break;
+			case 13:
+				vi[3-i] = vi_org[2];
+				break;
+			case 14:
+				vi[3-i] = vi_org[3];
+				break;
+			default:
+				std::printf("cubics %d bitmask not 7, 11, 13 or 14\n", i);
+				system("PAUSE");
+			}
+//			cubics[3-i].second = cubics_org[3].second;
+
+	}
+
 	// Reduces this PBF into a qpbf, adding variables (HOCR). newvar is the variable ID for use as new variable.
 	// Returns the variable ID to use for the next new variable.
 	VID toQuadratic(PBF& qpbf, VID newvar) const
@@ -249,7 +739,7 @@ public:
 	}
 
 	// Reduces higher-order terms (those with degree > 2) to quadratic by finding ELCs.
-	// *Not all terms are always reduced.*
+	// *Not all terms are always reduced.
 	// When mindeg = 2 is specified, it additionally removes non-submodular quadratic terms as much as possible.
 	void reduceHigher(int mindeg = 3)
 	{
@@ -303,7 +793,7 @@ public:
 			REAL c = it.coef(); // the coefficient of the term
 		}
 	*/
-	typedef typename Terms<REAL>::iterator iterator; 
+	typedef typename Terms<REAL>::iterator iterator;
 	iterator begin() const {return terms.begin();}
 	iterator end() const {return terms.end();}
 
@@ -319,8 +809,10 @@ public:
 // (i.e., if you are going to inquire the QPBO object if the variable has 0 or 1.)
 
 	template<typename OPTIMIZER>
-	void convert(OPTIMIZER& optimization, int varcount)
+	void convert(OPTIMIZER& optimization, int varcount, FILE* Log)
 	{
+		int mini = 100000, maxi = -100000, quadratics = 0;
+
 		varcount = std::max(varcount, maxID() + 1);
 		optimization.AddNode(varcount);
 		for (iterator it = begin(); it != end(); ++it)
@@ -330,12 +822,21 @@ public:
 				exit(-1);
 			VVecIt vs = it.vars();
 			REAL c = it.coef();
+
+			if (c < mini) mini = c;
+			if (c > maxi) maxi = c;
+
 			if (d == 1)
 				optimization.AddUnaryTerm(*vs, 0, c);
-			else
+			else{
 				optimization.AddPairwiseTerm(*vs, vs[1], 0, 0, 0, c);
+				quadratics++;
+			}
 		}
 		optimization.AddUnaryTerm(0, cnst(), cnst());
+
+		printf("\t[%7d, %7d]\t%d\t\t", mini, maxi, quadratics);
+		fprintf(Log,"\t[%7d, %7d]\t%d\t\t", mini, maxi, quadratics);
 	}
 
 private:
@@ -344,6 +845,7 @@ private:
 	void add(REAL c, int degree, VID* vars) {if (degree == 0) constant += c; else terms.add(c, degree, vars);}
 	void add1(REAL c, VID v) {terms.add1(c, v);}
 	void add2(REAL c, VID v1, VID v2) {terms.add2(c, v1, v2);}
+
 
 	// Converts higher-order terms to quadratic (HOCR), if necessary.
 	void addQuadraticTerms(const iterator& it, VID& newvar)
@@ -453,8 +955,10 @@ private:
 			rv.add(variables(terms, *it), terms.coef(*it));
 		rv.addConst(constant);
 	}
+
 	REAL constant;
 	Terms<REAL> terms;
+	int N;
 };
 
 

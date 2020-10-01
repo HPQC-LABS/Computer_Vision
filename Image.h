@@ -34,7 +34,7 @@ A minimal PGM image class for use in ELCdemo.cpp.
 #include <vector>
 #include <fstream>
 #include <math.h>
-
+#include <iostream>
 
 struct image
 {

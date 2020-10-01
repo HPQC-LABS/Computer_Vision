@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_project_file>
+	<FileVersion major="1" minor="6" />
+	<Project>
+		<Option title="Denoise" />
+		<Option pch_mode="2" />
+		<Option compiler="gcc" />
+		<Build>
+			<Target title="Debug">
+				<Option output="bin/Debug/Denoise" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj/Debug/" />
+				<Option type="1" />
+				<Option compiler="gcc" />
+				<Compiler>
+					<Add option="-g" />
+				</Compiler>
+			</Target>
+			<Target title="Release">
+				<Option output="bin/Release/Denoise" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj/Release/" />
+				<Option type="1" />
+				<Option compiler="gcc" />
+				<Compiler>
+					<Add option="-O2" />
+				</Compiler>
+				<Linker>
+					<Add option="-s" />
+				</Linker>
+			</Target>
+		</Build>
+		<Compiler>
+			<Add option="-Wall" />
+			<Add option="-pg" />
+			<Add option="-fexceptions" />
+		</Compiler>
+		<Linker>
+			<Add option="-pg -lgmon" />
+		</Linker>
+		<Unit filename="ELC/ELC.h" />
+		<Unit filename="ELC/ELC0.h" />
+		<Unit filename="ELCdemo.cpp" />
+		<Unit filename="Image.h" />
+		<Unit filename="QPBO/QPBO.cpp" />
+		<Unit filename="QPBO/QPBO.h" />
+		<Unit filename="QPBO/QPBO_extra.cpp" />
+		<Unit filename="QPBO/QPBO_maxflow.cpp" />
+		<Unit filename="QPBO/QPBO_postprocessing.cpp" />
+		<Unit filename="QPBO/block.h" />
+		<Extensions>
+			<code_completion />
+			<envvars />
+			<debugger />
+		</Extensions>
+	</Project>
+</CodeBlocks_project_file>
