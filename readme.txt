@@ -1,23 +1,7 @@
 Clique Reduction by Excludable Local Configuration software
-Version 1.04 (September 12th, 2014)
 
-Copyright 2014 Hiroshi Ishikawa. All rights reserved.
-This software can be used for research purposes only.
-This software or its derivatives must not be publicly distributed
-without a prior consent from the author (Hiroshi Ishikawa).
-
-THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
-INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
-AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL
-THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
-INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
-BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
-OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR
-TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
-USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-For the latest version, check: http://www.f.waseda.jp/hfs/indexE.html
+Copyright 2014 Hiroshi Ishikawa. 
+Copyright 2020 Andreas Soteriou.
 ----------------------------------------------------------------------------------------------
 
 OVERVIEW
@@ -44,7 +28,6 @@ Once the function is reduced, minimization itself can be done with known first-o
 such as the QPBO (roof dual) algorithm below.
 
 In this software, there are two ways to reduce a higher-order monomial to first order (second degree).
-
 
 A) Finding Excludable Local Configuration (ELC)
 Reduces the monomial without adding any variable. For some monomials, it cannot be done.
@@ -91,5 +74,4 @@ Version 1.02 (August 7th, 2014) Modified the interface for toQuadratic and conve
    behavior.
 Version 1.03 (September 5th, 2014) Bug fix.
 Version 1.04 (September 12th, 2014) Bug fix.
-
-
+Version 1.05 (October 1st, 2020) Added method based on this theorem: https://arxiv.org/abs/1910.13583
