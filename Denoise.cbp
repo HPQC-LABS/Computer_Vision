@@ -30,12 +30,8 @@
 		</Build>
 		<Compiler>
 			<Add option="-Wall" />
-			<Add option="-pg" />
 			<Add option="-fexceptions" />
 		</Compiler>
-		<Linker>
-			<Add option="-pg -lgmon" />
-		</Linker>
 		<Unit filename="ELC/ELC.h" />
 		<Unit filename="ELC/ELC0.h" />
 		<Unit filename="ELCdemo.cpp" />

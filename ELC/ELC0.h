@@ -179,6 +179,7 @@ public:
 	{
 		variables(const iterator& it) : sz(it.degree()), z(it.vars()+sz) {assert(sz > 0);}
 		variables(const Terms& terms, const TermPointer& pTerm) : sz(pTerm.degree()), z(terms.getVIt(pTerm)+sz) {assert(sz > 0);}
+		variables(int d, VVecIt vi) : sz(d), z(vi + sz) {assert(sz > 0);}
 		int size() const {return sz;}
 		VVecIt begin() const {return z - sz;}
 		VVecIt end() const {return z;}
@@ -320,7 +321,7 @@ class smallPBF
 {
 	typedef typename Terms<REAL>::variables variables;
 public:
-	smallPBF() : constant(0), numvars(0), MAX(std::numeric_limits<REAL>::max()), MIN(std::numeric_limits<REAL>::min()) {}
+	smallPBF() : constant(0), numvars(0), MAX(std::numeric_limits<REAL>::max()), MIN(std::numeric_limits<REAL>::min()) {for(int i = 0; i < 16; i++)	term[i] = 0;}
 
 	void setVars(int n, VVecIt vs) 		// vs must be sorted
 	{
@@ -338,6 +339,10 @@ public:
 	}
 
 	void add(const variables& vi, REAL c) {terms.push_back(std::make_pair(varvector(vi), c));}
+	void add2(REAL c, int v1, int v2){
+		term[(v1<<2) + v2] += c;
+		term[(v2<<2) + v1] += c;
+	}
 	void addConst(REAL c)	 {constant += c;}
 
 	REAL eval(BITMASK x) const
@@ -347,6 +352,17 @@ public:
 			if (!(~x & (*it).first))
 				rv += (*it).second;
 		return rv;
+	}
+
+	void print2(){
+		for(int i = 0; i < 16; i++){
+			int v1 = i>>2;
+			int v2 = i%4;
+			if(v1<=v2 && term[i])
+				std::printf("v1: %d, v2: %d, coef: %d\n", v1, v2, term[i]);
+			else
+				assert(term[v1>>2 + v2] == term[v2>>2 + v1]);
+		}
 	}
 
 	void print()
@@ -501,36 +517,28 @@ public:
 
 	// Get cubic and quartic terms
 	void get_hot_terms(std::vector<std::pair<BITMASK, REAL> >& cubics, REAL& quartic){
-		int counter = 4;
-		BITMASK bitmask;
+		unsigned short int arr[4] = {7, 11, 13, 14};
+		for(int i = 0; i < 4; i++)
+			cubics.push_back( std::make_pair(arr[i],0) );
 
-		for (auto it = terms.end() - 5; it != terms.end(); it++){
-			bitmask = it -> first;
-
-			if( bitmask == 14 || bitmask == 13 || bitmask == 11 || bitmask == 7){
-				cubics.push_back(*it);
-				counter--;
+		for (auto it = terms.begin(); it != terms.end(); it++)
+			switch(it -> first){
+			case 7:
+				cubics[0].second = it -> second;
+				break;
+			case 11:
+				cubics[1].second = it -> second;
+				break;
+			case 13:
+				cubics[2].second = it -> second;
+				break;
+			case 14:
+				cubics[3].second = it -> second;
+				break;
+			case 15:
+				quartic = it -> second;
+				break;
 			}
-			else if( bitmask == 15)	quartic = it -> second;
-		}
-
-		// Add the ones with a coefficient of zero
-		if(counter){
-			unsigned short int arr[4] = {7, 11, 13, 14};
-			bool found[4] = {false, false, false, false};
-
-			for(int i = 0; i < 4; i++)
-				for(auto x : cubics)
-					if(x.first == arr[i]){
-						found[i] = true;
-						break;
-					}
-
-			for(int i = 0; i < 4; i++)
-				if(!found[i])
-					cubics.push_back( std::make_pair(arr[i],0) );
-		}
-
 		std::sort(cubics.begin(), cubics.end(), [](const std::pair<BITMASK, REAL> &a, const std::pair<BITMASK, REAL> &b) {return a.second < b.second;} );
 	}
 
@@ -596,6 +604,9 @@ public:
 		return maxIdx;
 	}
 
+	REAL cnst(){return constant;}
+
+	REAL term[16];
 private:
 	BITMASK varvector(const variables& va)
 	{

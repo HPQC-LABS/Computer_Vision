@@ -61,6 +61,7 @@ Any report on bugs and results of trying on other platforms is appreciated.
 #include <stdlib.h>     /* srand, rand */
 #include <random>
 #include <algorithm>
+#include <iostream>
 
 using namespace ELCReduce;
 
@@ -425,6 +426,10 @@ void plot(int mode, int start, int end_)
 const char* modename[] = {"ELC+HOCR", "Approx. ELC", "HOCR", "Tin"};
 int main(int argc, char *argv[])
 {
+//	int random_seed;
+//	std::cin >> random_seed;
+//	srand(random_seed);
+
     int mode = 3;
 	if (argc == 2)
 		mode = atoi(argv[1]);
@@ -437,7 +442,7 @@ int main(int argc, char *argv[])
 		plot(mode, 10, 100);
 	else
 	{
-	for(int dim_size = 100; dim_size <= 100; dim_size+=10)
+	for(int dim_size = 170; dim_size <= 170; dim_size+=10)
     {
         Log = fopen( (LOG + "_" + std::to_string(mode) + "_" + std::to_string(dim_size) + ".txt").c_str(), "w");
 

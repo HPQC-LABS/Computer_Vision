@@ -286,10 +286,8 @@ public:
 	// Returns the variable ID to use for the next new variable.
 	VID toQuadratic_Tin(PBF& qpbf, VID newvar, int W)
 	{
-		N = newvar;
-		int counter = 0;
-		bool visited[N];
-		for(int i = 0; i < N; i++)
+		bool visited[newvar];
+		for(int i = 0; i < newvar; i++)
 			visited[i] = false;
 
 		newvar = std::max(newvar, maxID()+1);
@@ -306,68 +304,59 @@ public:
 				qpbf.add1(c, *vi);
 			else if (d == 2)
 				qpbf.add2(c, *vi, vi[1]);
-			else if (d == 4)
+			else if (d == 3)
+			{	// Deal with d == 3 terms that are not found in the above cliques
+				int idx = (*vi == vi[1] - W + 1) ? *vi - 1 : *vi;
+				if(!visited[idx]){
+					visited[idx] = true;
+
+					VVec vars;
+					vars.push_back(idx);
+					vars.push_back(idx + 1);
+					vars.push_back(idx + W);
+					vars.push_back(idx + W + 1);
+					VVecIt new_vi = vars.begin();
+
+					smallPBF<REAL> clique;
+					getClique(clique, variables(4, new_vi));
+					addQuadraticTin(qpbf, clique, new_vi, newvar);
+				}
+			}
+			else
 			{
 				visited[*vi] = true;
 
 				smallPBF<REAL> clique;
-				getCore(clique, it);
+				getClique(clique, it);
 				addQuadraticTin(qpbf, clique, vi, newvar);
 			}
-			else{// Deal with d == 3 terms that are not found in the above cliques
-				int idx = (*vi == vi[1] - W + 1) ? *vi - 1 : *vi;
-				if(!visited[idx]){
-					counter++;
-					if (c < 0){
-						for (; vi != va.end(); ++vi)
-							qpbf.add2(c, *vi, newvar);
-						qpbf.add1(-2*c, newvar);
-					}
-					else{
-						for (int j = 0; j < 3; j++) // S_1
-							qpbf.add2(-c, vi[j], newvar);
-						qpbf.add1(c, newvar);
-
-						for (int i = 0; i < 2; i++) // S_2
-							for (int j = i + 1; j < 3; j++)
-								qpbf.add2(c, vi[i], vi[j]);
-					}
-					newvar++;
-				}
-			}
 		}
-		std::printf("counter: %d\t", counter);
 		qpbf.addConst(constant);
 		return newvar;
 	}
 
 	void addQuadraticTin(PBF<REAL> &qpbf, smallPBF<REAL> &clique, VVecIt &vi, VID &newvar){
-		bool flipped[N];
-		for(int i = 0; i < N; i++){
-			flipped[i] = false;
-		}
+		bool flipped[4];
+		for(int i = 0; i < 4; i++)	flipped[i] = false;
+
 		std::vector<std::pair<BITMASK, REAL> > cubics;
 		REAL quartic = 0;
 		clique.get_hot_terms(cubics, quartic);
 
-		PBF<REAL> extra;
+		smallPBF<REAL> extra;
 		int lemma = apply_bitflips(clique, cubics, quartic, vi, extra, flipped);
 
-		VID vi_true[4];
-		get_true_vi(cubics, vi, vi_true);
-		apply_lemma(lemma, cubics, quartic, vi_true, newvar, qpbf, flipped);
-		qpbf.addQuad(extra, flipped);
-
+		apply_lemma(lemma, cubics, quartic, vi, newvar, qpbf, flipped);
+		qpbf.addQuad(extra, flipped, vi);
 		/*
-		VID v_true[4];
+		VID v_true[4]; int perm[4];
 		std::vector<std::pair<BITMASK, REAL> > cub;
 		REAL quar = 0;
 		clique.get_hot_terms(cub, quar);
-		get_true_vi(cub, vi, v_true);
-		bool flag = check(extra, flipped, cub, quar, v_true, newvar);
+		get_true_vi(cub, vi, v_true, perm);
+		bool flag = check(quad, flipped, cub, quar, v_true, newvar);
 
 		if(!flag){
-//			std::printf("case_ID = %d\n", case_ID);
 			std::printf("%d, %d, %d, %d, quartic = %d\n", cubics[0].second, cubics[1].second, cubics[2].second, cubics[3].second, quartic);
 //			std::printf("%d, %d, %d, %d\n", cubics[0].first, cubics[1].first, cubics[2].first, cubics[3].first);
 			extra.print();
@@ -377,31 +366,32 @@ public:
 		newvar++;
 	}
 
-	void apply_lemma(int lemma, std::vector<std::pair<BITMASK, REAL> > &cubics, REAL &quartic, VID *vi_true, VID newvar, PBF<REAL> &quad, bool *flipped){
-		assert(check_lemma_condition(cubics, quartic, lemma));
+	void apply_lemma(int lemma, std::vector<std::pair<BITMASK, REAL> > &cubics, REAL &quartic, VVecIt &vi, VID newvar, PBF<REAL> &quad, bool *flipped){
+		VID vi_true[4];	int perm[4];
+		get_true_vi(cubics, vi, vi_true, perm);
+//		assert(check_lemma_condition(cubics, quartic, lemma));
 
 		REAL cubics_sum = cubics[0].second + cubics[1].second + cubics[2].second + cubics[3].second;
-
 		if(lemma == 1){
 			quad.add1(3*quartic + cubics_sum, newvar);
 			for (int i = 0; i < 3; i++)
 				for (int j = i + 1; j < 4; j++)
 					if((i == 0 && j == 3) || (i == 1 && j == 2))
-						quad.add2_flipped(quartic + cubics_sum - cubics[i].second - cubics[j].second, std::min(vi_true[i], vi_true[j]), std::max(vi_true[i], vi_true[j]), flipped);
+						quad.add2_flipped(quartic + cubics_sum - cubics[i].second - cubics[j].second, vi_true[i], vi_true[j], flipped[perm[i]], flipped[perm[j]]);
 					else
-						quad.add2_flipped(quartic + cubics[i].second + cubics[j].second, std::min(vi_true[i], vi_true[j]), std::max(vi_true[i], vi_true[j]), flipped);
+						quad.add2_flipped(quartic + cubics[i].second + cubics[j].second, vi_true[i], vi_true[j], flipped[perm[i]], flipped[perm[j]]);
 
 			for(int i = 0; i < 4; i++)
-				quad.add2_flipped( - 2*quartic - cubics_sum + cubics[3 - i].second, vi_true[i], newvar, flipped);
+				quad.add2_flipped( - 2*quartic - cubics_sum + cubics[3 - i].second, vi_true[i], newvar, flipped[perm[i]], false);
 		}
 		else{//Lemma 2
 			quad.add1( - 3*quartic - 2*cubics_sum, newvar);
 			for(int i = 0; i < 4; i++)
-				quad.add2_flipped( quartic + cubics_sum - cubics[3 - i].second, vi_true[i], newvar, flipped);
+				quad.add2_flipped( quartic + cubics_sum - cubics[3 - i].second, vi_true[i], newvar, flipped[perm[i]], false);
 		}
 	}
 
-	short int apply_bitflips(smallPBF<REAL> &clique,std::vector<std::pair<BITMASK, REAL> > &cubics, REAL &quartic, VVecIt &vi, PBF<REAL> &quad, bool *flipped){
+	short int apply_bitflips(smallPBF<REAL> &clique,std::vector<std::pair<BITMASK, REAL> > &cubics, REAL &quartic, VVecIt &vi, smallPBF<REAL> &quad, bool *flipped){
 
 		if(quartic < 0){
 			bitflip(cubics, quartic, quad, vi, flipped, 1);
@@ -504,17 +494,26 @@ public:
 			return 1;
 	}
 
-	void add1_flipped(REAL c, VID v1, bool *flipped){
-		if(v1 < N && flipped[v1]){
+	void add1_flipped(REAL c, VID v1, bool flip){
+		if(flip){
 			add1(-c, v1);
 			addConst(c);
 		}
 		else
 			add1(c, v1);
 	}
-	void add2_flipped(REAL c, VID v1, VID v2, bool *flipped){
-		if(v1 < N && flipped[v1]){
-			if(v2 < N && flipped[v2]){
+	void add2_flipped(REAL c, VID v1, VID v2, bool flip1, bool flip2){
+		if(v1 > v2){
+			VID temp = v1;
+			v1 = v2;
+			v2 = temp;
+			bool b = flip1;
+			flip1 = flip2;
+			flip2 = b;
+		}
+
+		if(flip1){
+			if(flip2){
 				add2(c, v1, v2);
 				add1(-c, v1);
 				add1(-c, v2);
@@ -526,7 +525,7 @@ public:
 			}
 		}
 		else{
-			if(v2 < N && flipped[v2]){
+			if(flip2){
 				add2(-c, v1, v2);
 				add1(c, v1);
 			}
@@ -535,21 +534,22 @@ public:
 		}
 	}
 
-	void addQuad(PBF<REAL> &quad, bool *flipped){
-		for(iterator it = quad.begin(); it != quad.end(); ++it){
-			int d = it.degree();
-			variables va = it;
-			VVecIt vi = va.begin();
-			REAL c = it.coef();
-			if (d == 0)
-				addConst(c);
-			else if (d == 1)
-				add1_flipped(c, *vi, flipped);
-			else if (d == 2)
-				add2_flipped(c, *vi, vi[1], flipped);
+	void addQuad(smallPBF<REAL> &extra, bool *flipped, VVecIt &vi){
+		int v1, v2;
+		for(int i = 0; i < 16; i++){
+			v1 = i>>2;
+			v2 = i%4;
+			if(v1 > v2 || !extra.term[i]) continue;
+
+			if(v1 == v2)
+				add1_flipped(extra.term[i], vi[v1], flipped[v1]);
+			else
+				add2_flipped(extra.term[i], vi[v1], vi[v2], flipped[v1], flipped[v2]);
 		}
+		addConst(extra.cnst());
 	}
 
+	/*
 	bool check_lemma_condition(std::vector<std::pair<BITMASK, REAL> > &cubics, REAL quartic, int lemma){
 		if(lemma == 1){
 			for(int i = 0; i < 4; i++){
@@ -572,6 +572,7 @@ public:
 	}
 
 	bool check(PBF<REAL> &quad, bool *flipped, std::vector<std::pair<BITMASK, REAL> > &cubics, REAL quartic, VID *vi, VID newvar){
+		bool flag = true;
 		for(int i = 0; i < 16; i++){
 			int bit[4];
 			bit[0] = i%2;
@@ -584,9 +585,9 @@ public:
 			REAL res = std::min(val0, val1);
 
 			REAL org = 0, cubics_sum = cubics[0].second + cubics[1].second + cubics[2].second + cubics[3].second;
-			for(int k = 0; k < 4; k++)
-				if(flipped[vi[k]])
-					bit[k] = (bit[k] + 1) % 2;
+//			for(int k = 0; k < 4; k++)
+//				if(flipped[vi[k]])
+//					bit[k] = (bit[k] + 1) % 2;
 
 			int k = bit[0] + 2*bit[1] + 4*bit[2] + 8*bit[3];
 			if(k == 15)
@@ -596,11 +597,11 @@ public:
 					if(bit[j] == 0)
 						org = cubics[3-j].second;
 			}
-//			std::printf("quad = %d, org = %d\n", res, org);
+//			std::printf("val0 = %4d\tval1 = %4d\tmin = %4d\torg = %4d\n", val0, val1, res, org);
 			if(org != res)
-				return false;
+				flag = false;
 		}
-		return true;
+		return flag;
 	}
 
 	REAL evaluate(PBF<REAL> &quad, int *bit, VID *v, VID newvar, int aux){
@@ -633,60 +634,61 @@ public:
 		return value;
 	}
 
-	void bitflip(std::vector< std::pair <BITMASK, REAL> > &cubics, REAL &quartic, PBF<REAL>& extra, VVecIt &vi_org, bool *flipped, short int bit){
-		VID vi[4];
-		get_true_vi(cubics, vi_org, vi);
-
+	*/
+	void bitflip(std::vector< std::pair <BITMASK, REAL> > &cubics, REAL &quartic, smallPBF<REAL>& extra, VVecIt &vi_org, bool *flipped, short int bit){
 		bit--;
-		for(iterator it = extra.begin(); it != extra.end(); ++it){
-			int d = it.degree();
-			variables va = it;
-			VVecIt v = va.begin();
 
-			if(d == 1){
-				if(*v == vi[bit]){
-					REAL c = it.coef();
-					extra.add1(-2*c, *v);
+		VID vi[4];
+		int perm[4];
+		get_true_vi(cubics, vi_org, vi, perm);
+		/*
+		std::printf("bitflip: %d\n", bit);
+		std::printf("cubics: %d, %d, %d, %d\n", cubics[0].second, cubics[1].second, cubics[2].second, cubics[3].second);
+		std::printf("perm: %d, %d, %d, %d\n", perm[0], perm[1], perm[2], perm[3]);
+		*/
+		flipped[perm[bit]] = !flipped[perm[bit]];
+
+		int v1 = perm[bit];
+		for(int i = v1<<2; i < (v1+1)<<2; i++){
+			if(extra.term[i]){
+				REAL c = extra.term[i];
+				int v2 = i%4;
+
+//				std::printf("v1 = %d, v2 = %d, c = %d\n", v1, v2, c);
+				if(v1 == v2){
 					extra.addConst(c);
+					extra.term[i] = -c;
 				}
-			}
-			else if(d == 2){
-				if(*v == vi[bit]){
-					REAL c = it.coef();
-					extra.add2(-2*c, *v, v[1]);
-					extra.add1(c, v[1]);
-				}
-				else if(v[1] == vi[bit]){
-					REAL c = it.coef();
-					extra.add2(-2*c, *v, v[1]);
-					extra.add1(c, *v);
+				else{
+					extra.term[(v2<<2) + v2] += c;
+					assert(extra.term[(v2<<2) + v1] == c);
+					extra.term[i] = -c;
+					extra.term[(v2<<2) + v1] = -c;
 				}
 			}
 		}
+
 		if(bit == 0){
-			flipped[vi[0]] += -1;
-			extra.add2(cubics[0].second, std::min(vi[1], vi[2]), std::max(vi[1], vi[2]));
-			extra.add2(cubics[1].second, std::min(vi[1], vi[3]), std::max(vi[1], vi[3]));
-			extra.add2(cubics[2].second, std::min(vi[2], vi[3]), std::max(vi[2], vi[3]));
+			extra.add2(cubics[0].second, perm[1], perm[2]);
+			extra.add2(cubics[1].second, perm[1], perm[3]);
+			extra.add2(cubics[2].second, perm[2], perm[3]);
 		}
 		else if(bit == 1){
-			flipped[vi[1]] += -1;
-			extra.add2(cubics[0].second, std::min(vi[0], vi[2]), std::max(vi[0], vi[2]));
-			extra.add2(cubics[1].second, std::min(vi[0], vi[3]), std::max(vi[0], vi[3]));
-			extra.add2(cubics[3].second, std::min(vi[2], vi[3]), std::max(vi[2], vi[3]));
+			extra.add2(cubics[0].second, perm[0], perm[2]);
+			extra.add2(cubics[1].second, perm[0], perm[3]);
+			extra.add2(cubics[3].second, perm[2], perm[3]);
 		}
 		else if(bit == 2){
-			flipped[vi[2]] += -1;
-			extra.add2(cubics[0].second, std::min(vi[0], vi[1]), std::max(vi[0], vi[1]));
-			extra.add2(cubics[2].second, std::min(vi[0], vi[3]), std::max(vi[0], vi[3]));
-			extra.add2(cubics[3].second, std::min(vi[1], vi[3]), std::max(vi[1], vi[3]));
+			extra.add2(cubics[0].second, perm[0], perm[1]);
+			extra.add2(cubics[2].second, perm[0], perm[3]);
+			extra.add2(cubics[3].second, perm[1], perm[3]);
 		}
 		else{// (bit == 3)
-			flipped[vi[3]] += -1;
-			extra.add2(cubics[1].second, std::min(vi[0], vi[1]), std::max(vi[0], vi[1]));
-			extra.add2(cubics[2].second, std::min(vi[0], vi[2]), std::max(vi[0], vi[2]));
-			extra.add2(cubics[3].second, std::min(vi[1], vi[2]), std::max(vi[1], vi[2]));
+			extra.add2(cubics[1].second, perm[0], perm[1]);
+			extra.add2(cubics[2].second, perm[0], perm[2]);
+			extra.add2(cubics[3].second, perm[1], perm[2]);
 		}
+
 
 		for(int i = 0; i < 4; i++)
 			if(bit == (3-i))
@@ -694,30 +696,34 @@ public:
 			else
 				cubics[i].second *= -1;
 		quartic *= -1;
-
-//		std::printf("cubics: %d, %d, %d, %d, quartic: %d\n", cubics[0].second, cubics[1].second, cubics[2].second, cubics[3].second, quartic);
-//		std::printf("    \nvi_org: %d, %d, %d, %d\n", vi_org[0], vi_org[1], vi_org[2], vi_org[3]);
-//		std::printf("bit: %d, vi: %d, %d, %d, %d\n", bit, vi[0], vi[1], vi[2], vi[3]);
-//		std::printf("%d, %d, %d, %d\n", cubics[0].first, cubics[1].first, cubics[2].first, cubics[3].first);
-//		extra.print();
-//		system("PAUSE");
-
+		/*
+		extra.print2();
+		std::printf("cubics: %d, %d, %d, %d, quartic: %d\n", cubics[0].second, cubics[1].second, cubics[2].second, cubics[3].second, quartic);
+		std::printf("    \nvi_org: %d, %d, %d, %d\n", vi_org[0], vi_org[1], vi_org[2], vi_org[3]);
+		std::printf("bit: %d, vi: %d, %d, %d, %d\n", bit, vi[0], vi[1], vi[2], vi[3]);
+		std::printf("%d, %d, %d, %d\n", cubics[0].first, cubics[1].first, cubics[2].first, cubics[3].first);
+		system("PAUSE");
+		*/
 	}
 
-	void get_true_vi(std::vector<std::pair<BITMASK, REAL> > &cubics, VVecIt &vi_org, VID *vi){
+	void get_true_vi(std::vector<std::pair<BITMASK, REAL> > &cubics, VVecIt &vi_org, VID *vi, int *perm){
 		for(int i = 0; i < 4; i++)
 			switch(cubics[i].first){
 			case 7:
 				vi[3-i] = vi_org[0];
+				perm[3-i] = 0;
 				break;
 			case 11:
 				vi[3-i] = vi_org[1];
+				perm[3-i] = 1;
 				break;
 			case 13:
 				vi[3-i] = vi_org[2];
+				perm[3-i] = 2;
 				break;
 			case 14:
 				vi[3-i] = vi_org[3];
+				perm[3-i] = 3;
 				break;
 			default:
 				std::printf("cubics %d bitmask not 7, 11, 13 or 14\n", i);
@@ -956,9 +962,27 @@ private:
 		rv.addConst(constant);
 	}
 
+	void getClique(smallPBF<REAL>& rv, const variables& vars)
+	{
+		rv.setVars(vars);
+		std::vector<TermPointer> ps;
+		for (VVecIt vi = vars.begin(); vi != vars.end(); ++vi)
+		{
+			std::vector<TermPointer>& ts = terms.getTermsContaining(*vi);
+			for (auto it = ts.begin(); it != ts.end(); it++){
+				if(it->degree() < 3)	continue;
+				if (vars.includes(variables(terms, *it)))
+					ps.push_back(*it);
+			}
+		}
+		std::sort(ps.begin(), ps.end());
+		auto it2 = std::unique(ps.begin(), ps.end());
+		for (auto it = ps.begin(); it != it2; it++)
+			rv.add(variables(terms, *it), terms.coef(*it));
+	}
+
 	REAL constant;
 	Terms<REAL> terms;
-	int N;
 };
 
 

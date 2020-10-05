@@ -1,0 +1,8 @@
+To profile the code run:
+
+gprof .\bin\Debug\Denoise.exe gmon.out -P analysis.txt
+
+
+gmon.out is the output of the code when run using -pg
+or in codeblocks:
+Project -> Build tools -> Enable profiling
